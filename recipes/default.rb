@@ -39,42 +39,77 @@ package 'libcap2-bin'
 package 'git'
 
 # Checkout and setup pyssdeep
-execute 'install pyssdeep' do
+execute 'checkout pyssdeep' do
   command 'svn checkout http://pyssdeep.googlecode.com/svn/trunk/ /tmp/pyssdeep'
+end
+execute 'build pyssdeep' do
+  cwd '/tmp/pyssdeep'
   command 'python /tmp/pyssdeep/setup.py build'
+  user 'root'
+end
+execute 'install pyssdeep' do
+  cwd '/tmp/pyssdeep'
   command 'python /tmp/pyssdeep/setup.py install'
+  user 'root'
 end
 log 'pyssdeep downloaded and installed'
 
 # Download yara
 remote_file '/tmp/' do
   source 'http://yara-project.googlecode.com/files/yara-1.6.tar.gz'
+end
+remote_file '/tmp/' do
   source 'http://yara-project.googlecode.com/files/yara-python-1.6.tar.gz'
 end
 log 'yara downloaded'
 
 # Extract yara tar.gz file
-execute 'install yara' do
+execute 'download yara' do
+  cwd '/tmp/'
   command 'tar -xvzf /tmp/yara-1.6.tar.gz'
-  command './tmp/yara-1.6/configure'
-  command './tmp/yara-1.6/make check'
-  command './tmp/yara-1.6/make install'
+end
+execute 'configure yara' do
+  cwd '/tmp/yara-1.6/'
+  command './configure'
+  user 'root'
+end
+execute 'check yara' do
+  cwd '/tmp/yara-1.6/'
+  command '.make check'
+  user 'root'
+end
+execute 'install yara' do
+  cwd '/tmp/yara-1.6/'
+  command './make install'
+  user 'root'
 end
 log 'Finished yara installation'
 
 # Extract and install yara-python tar.gz file
-execute 'install yara-python' do
+execute 'extract yara-python' do
+  cwd '/tmp/'
   command 'tar -xvzf /tmp/yara-python-1.6.tar.gz'
-  command './tmp/yara-python-1.6/configure'
-  command './tmp/yara-python-1.6/python setup.py build'
-  command './tmp/yara-python-1.6/python setup.py install' 
+end
+execute 'configure yara-python' do
+  cwd '/tmp/yara-python-1.6/'
+  command './configure'
+  user 'root'
+end
+execute 'build yara-python' do
+  cwd '/tmp/yara-python-1.6/'
+  command 'python setup.py build'
+  user 'root'
+end
+execute 'install yara-python' do
+  cwd '/tmp/yara-python-1.6/'
+  command 'python setup.py install'
+  user 'root'
 end
 log 'Finished python support installation'
 
 # Configure tcpdump
 execute 'config tcpump' do
   command 'setcap cap_net_raw,cap_net_admin=eip /usr/sbin/tcpdump'
-  command 'getcap /usr/sbin/tcpdump > /tmp/getcap.out' # to check changes have been applied  
 end
 log 'tcpdump configured to work with Cuckoo'
 
@@ -84,11 +119,26 @@ log 'Created cuckoo user'
 execute 'config cuckoouser' do
   command 'usermod -a -G vboxusers cuckoo' # add cuckoo to vboxusers group
 end
-log 'Added cuckoo user to the vboxusers group
-'
+log 'Added cuckoo user to the vboxusers group'
+
+directory '/tmp/cuckoo/'
+  action :create
+end
 # Download cuckoobox
 execute 'config cuckoo' do
-  command 'git clone git://github.com/cuckoobox/cuckoo.git /tmp'
+  command 'git clone git://github.com/cuckoobox/cuckoo.git /tmp/cuckoo'
 end
-log 'Cuckoo Sandbox downloaded from git://github.com/cuckoobox/ to /tmp'
+log 'Cuckoo Sandbox downloaded from git://github.com/cuckoobox/ to /tmp/cuckoo'
 log 'Cuckoo Sandbox host installed'
+
+execute 'move cuckoo' do
+  command 'mv /tmp/cuckoo /usr/'
+  user 'root'
+end
+
+execute 'launch webui' do
+  cwd '/usr/cuckoo/utils/'
+  command 'python web.py'
+  user 'root'
+end
+log 'WebUI Started'
