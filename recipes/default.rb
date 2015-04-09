@@ -19,6 +19,9 @@
 #
 # NOTE - STILL A WORK IN PROGRESS
 #
+
+include_recipe 'python'
+
 package 'python' #installed by default
 package 'python-magic' # for identifying file formats  
 package 'python-dpkt' # for extracting info from pcaps  
@@ -55,10 +58,10 @@ end
 log 'pyssdeep downloaded and installed'
 
 # Download yara
-remote_file '/tmp/' do
+remote_file '/tmp/yara-1.6.tar.gz' do
   source 'http://yara-project.googlecode.com/files/yara-1.6.tar.gz'
 end
-remote_file '/tmp/' do
+remote_file '/tmp/yara-python-1.6.tar.gz' do
   source 'http://yara-project.googlecode.com/files/yara-python-1.6.tar.gz'
 end
 log 'yara downloaded'
@@ -75,12 +78,12 @@ execute 'configure yara' do
 end
 execute 'check yara' do
   cwd '/tmp/yara-1.6/'
-  command '.make check'
+  command 'make check'
   user 'root'
 end
 execute 'install yara' do
   cwd '/tmp/yara-1.6/'
-  command './make install'
+  command 'make install'
   user 'root'
 end
 log 'Finished yara installation'
@@ -89,11 +92,6 @@ log 'Finished yara installation'
 execute 'extract yara-python' do
   cwd '/tmp/'
   command 'tar -xvzf /tmp/yara-python-1.6.tar.gz'
-end
-execute 'configure yara-python' do
-  cwd '/tmp/yara-python-1.6/'
-  command './configure'
-  user 'root'
 end
 execute 'build yara-python' do
   cwd '/tmp/yara-python-1.6/'
@@ -115,30 +113,37 @@ log 'tcpdump configured to work with Cuckoo'
 
 user 'cuckoo'
 log 'Created cuckoo user'
-# Config cuckoo user
-execute 'config cuckoouser' do
-  command 'usermod -a -G vboxusers cuckoo' # add cuckoo to vboxusers group
-end
-log 'Added cuckoo user to the vboxusers group'
 
-directory '/tmp/cuckoo/'
-  action :create
+file "/opt/deploy_key" do
+  mode "0400"
+  content node['DEPLOY_KEY']
+  sensitive true
 end
-# Download cuckoobox
-execute 'config cuckoo' do
-  command 'git clone git://github.com/cuckoobox/cuckoo.git /tmp/cuckoo'
+
+file "/opt/gitssh" do
+  mode "0550"
+  content <<-eos
+    #!/bin/sh
+    exec /usr/bin/ssh -o StrictHostKeyChecking=no -i /opt/deploy_key "$@"
+  eos
 end
-log 'Cuckoo Sandbox downloaded from git://github.com/cuckoobox/ to /tmp/cuckoo'
+
+package 'git'
+
+git '/opt/cuckoo' do
+  repository 'git://github.com/cuckoobox/cuckoo.git'
+  ssh_wrapper '/opt/gitssh'
+end
 log 'Cuckoo Sandbox host installed'
 
-execute 'move cuckoo' do
-  command 'mv /tmp/cuckoo /usr/'
-  user 'root'
+template '/opt/cuckoo/conf/reporting.conf' do
+  source 'reporting.conf.erb'
 end
 
+python_pip 'django'
+
 execute 'launch webui' do
-  cwd '/usr/cuckoo/utils/'
-  command 'python web.py'
-  user 'root'
+  cwd '/opt/cuckoo/web/'
+  command 'nohup python manage.py runserver 0.0.0.0:8000 &>/dev/null &'
 end
 log 'WebUI Started'
